@@ -10,8 +10,12 @@
             </span>
           </router-link>
         </div>
-        <div class="hidden sm:block w-full blok flex-grow lg:flex lg:items-center lg:wauto">
-          <div class="text-sm lg:flex-grow"></div>
+        <div class="flex w-auto flex-grow items-center">
+          <div class="text-sm lg:flex-grow">
+            <router-link v-for="l in links" :key="l.title" :to="l.to" class="inline-block text-teal-200 hover:text-white mr-4">
+              {{ l.title }}
+            </router-link>
+          </div>
         </div>
       </nav>
     </nav>
@@ -23,6 +27,12 @@
   export default {
     components: {
       PxIcon
+    },
+    props: {
+      links: {
+        type: Array,
+        default: () => []
+      }
     }
   }
 </script>

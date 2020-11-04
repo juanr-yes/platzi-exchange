@@ -41,37 +41,86 @@
           </ul>
         </div>
         <div class="my-10 sm:mt-0 flex flex-col justify-center text-center">
-          <button class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
-            Cambiar
+          <button @click="toggleConverter" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
+            {{ fromUsd ? `Cambiar de ${asset.symbol} a USD` : `Cambiar de USD a ${asset.symbol}` }}
           </button>
-          <div class="flex flex-row my-5">
+          <div class="flex flex-row mt-5 mb-2">
             <label class="w-full" for="convertValue">
-              <input id="convertValue" type="number" class="text-center bg-white focus:outline-none focus:shadow-outline border border-gray-300 rounded-lg py-2 px-4 block w-full appearance-none leading-normal"/>
+              <input v-model="convertValue" :placeholder="`Valor en ${fromUsd ? 'USD' : asset.symbol}`" id="convertValue" type="number" class="text-center bg-white focus:outline-none focus:shadow-outline border border-gray-300 rounded-lg py-2 px-4 inline-block appearance-none leading-normal"/>
+              {{ fromUsd ? 'USD' : asset.symbol }}
             </label>
           </div>
-          <span class="text-xl"></span>
+          <span class="text-sm">
+            equivalen a
+          </span>
+          <span class="text-xl">
+            {{ fromUsd ? `${convertResult} ${asset.symbol}` : convertResult }}
+          </span>
         </div>
       </div>
       <line-chart :colors="['orange']" :min="min" :max="max" :data="history.map(h => [h.date, parseFloat(h.priceUsd).toFixed(2)])" class="my-10"/>
+      <h3 class="text-xl my-10">Mejores Ofertas de Cambio</h3>
+      <table>
+        <tr class="border-b" v-for="m in markets" :key="`${m.exchangeId}-${m.priceUsd}`">
+          <td>
+            <b>{{ m.exchangeId }}</b>
+          </td>
+          <td>
+            {{ m.priceUsd | dollar }}
+          </td>
+          <td>
+            {{ m.baseSymbol }}
+          </td>
+          <td>
+            <px-button :is-loading="m.isLoading || false" v-if="!m.url" @custom-click="getWebsite(m)">
+              <template v-slot:button-content>
+                <span>Obtener Link</span>
+              </template>
+            </px-button>
+            <a v-else class="hover:underline text-green-600" target="_blank">
+              {{ m.url }}
+            </a>
+          </td>
+        </tr>
+      </table>
     </template>
   </div>
 </template>
 
 <script>
   import api from "@/api"
+  import PxButton from "@/components/PxButton"
   export default {
     name: 'CoinDetail',
+    components: {
+      PxButton
+    },
     data() {
       return {
         isLoading: false,
         asset: {},
-        history: []
+        history: [],
+        markets: [],
+        fromUsd: true,
+        convertValue: null
       }
     },
     created() {
       this.getCoin();
     },
     computed: {
+      convertResult() {
+        if (!this.convertValue) {
+          return 0
+        }
+        const result = this.fromUsd ? this.convertValue / this.asset.priceUsd : this.convertValue * this.asset.priceUsd
+
+        if (this.fromUsd) {
+          return result.toFixed(2)
+        } else {
+          return this.$options.filters.dollar(result)
+        }
+      },
       min() {
         return Math.min(
           ... this.history.map(h => parseFloat(h.priceUsd).toFixed(2))
@@ -88,6 +137,11 @@
         )
       }
     },
+    watch: {
+      $route() {
+        this.getCoin()
+      }
+    },
     methods: {
       getCoin() {
         this.isLoading = true;
@@ -95,16 +149,34 @@
         Promise.all([
           api.getAsset(id),
           api.getAssetHistory(id),
-        ]).then(([asset, history]) => {
+          api.getMarkets(id),
+        ]).then(([asset, history, markets]) => {
           this.asset = asset,
-          this.history = history
+          this.history = history,
+          this.markets = markets
         })
         .finally(() => this.isLoading = false)
+      },
+      getWebsite(exchange) {
+        this.$set(exchange, 'isLoading', true)
+        return api.getExchange(exchange.exchangeId)
+          .then(res => {
+            this.$set(exchange, 'url', res.exchangeUrl)
+          })
+          .finally(() => {
+            this.$set(exchange, 'isLoading', false)
+          })
+      },
+      toggleConverter() {
+        this.fromUsd = !this.fromUsd
       }
     }
   }
 </script>
 
-<style>
-
+<style scoped>
+  td {
+    padding: 10px;
+    text-align: center;
+  }
 </style>
